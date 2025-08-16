@@ -234,8 +234,3 @@ results/
 !examples/*.bmp
 !examples/*.tiff
 !assets/*.png
-
-# Project specific
-generate_v2v.py
-wan/modules/vace_v2v_model.py
-wan/video2video.py
