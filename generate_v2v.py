@@ -36,22 +36,28 @@ def _parse_args():
 
 def main():
     args = _parse_args()
+    print(f"[LOG] 인자 파싱 완료. 태스크: {args.task}, 프롬프트: {args.prompt}")
 
     # 기본 설정 불러오기
     config = WAN_CONFIGS[args.task]
+    print(f"[LOG] 설정 불러오기 완료. 샘플 FPS: {config.sample_fps}")
 
     # CustomWanVace 클래스 초기화
+    print("[LOG] CustomWanVace 모델 초기화 시작...")
     wan_vace = CustomWanVace(
         config=config,
         wan2_2_ckpt_dir=args.ckpt_dir,
         wan2_1_vace_ckpt_path=args.vace_ckpt_path,
         device_id=0
     )
+    print("[LOG] 모델 초기화 완료")
 
     # 비디오, 마스크, 레퍼런스 이미지 전처리
+    print("[LOG] 소스 데이터 준비 시작...")
     src_video_list = [args.input_video]
     src_mask_list = [args.input_mask] if args.input_mask else [None]
     src_ref_images_list = [args.ref_image.split(',')] if args.ref_image else [None]
+    print(f"[LOG] 입력 비디오: {args.input_video}, 프레임 수: {args.frame_num}, 해상도: {args.size}")
 
     input_frames, input_masks, ref_images = wan_vace.prepare_source(
         src_video_list,
@@ -61,8 +67,11 @@ def main():
         size=SIZE_CONFIGS[args.size],
         device=wan_vace.device
     )
+    print("[LOG] 소스 데이터 준비 완료")
 
     # GENERATE!!
+    print("[LOG] 비디오 생성 시작...")
+    print(f"[LOG] 샘플링 스텝: {args.sampling_steps}, 컨텍스트 스케일: {args.context_scale}, 시드: {args.seed}")
     video_tensor = wan_vace.generate(
         input_prompt=args.prompt,
         input_frames=input_frames,
@@ -74,12 +83,15 @@ def main():
         seed=args.seed,
         offload_model=args.offload_model
     )
+    print("[LOG] 비디오 생성 완료")
 
     # 비디오 저장
+    print("[LOG] 비디오 저장 시작...")
     if video_tensor is not None:
         save_video(video_tensor,args.output_path, fps=config.sample_fps)
+        print(f"[LOG] 비디오 저장 완료: {args.output_path}")
     else:
-        print('Video Generation Failed')
+        print('[LOG] Video Generation Failed')
 
 
 if __name__ == "__main__":
