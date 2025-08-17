@@ -332,8 +332,13 @@ class CustomWanVace(WanT2V):
             base_expert_path,
             vace_ckpt_path,
     ):
-        # __name__ 키 제거하고 전달
-        filtered_config = {k: v for k, v in model_config.items() if k != '__name__'}
+        # CustomVaceWanModel에 필요한 파라미터만 추출
+        valid_params = [
+            'vace_layers', 'vace_in_dim', 'model_type', 'patch_size', 'text_len', 
+            'in_dim', 'dim', 'ffn_dim', 'freq_dim', 'text_dim', 'out_dim', 
+            'num_heads', 'num_layers', 'window_size', 'qk_norm', 'cross_attn_norm', 'eps'
+        ]
+        filtered_config = {k: v for k, v in model_config.items() if k in valid_params}
         model = CustomVaceWanModel(**filtered_config)
 
         # Wan 2.2 전체 웨이트 로드
