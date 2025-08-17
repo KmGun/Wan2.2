@@ -280,7 +280,10 @@ class CustomWanVace(WanT2V):
         return cat_latents
 
     def vace_encode_masks(self, masks, ref_images=None, vae_stride=None):
-        vae_stride = self.vae_stride if vae_stride is None else vae_stride
+        # HACK: The vae_stride value from the config seems incorrect for this model (ti2v-5B).
+        # The VAE uses a stride of 8 (e.g., 1280 -> 160), but the stride for width
+        # appears to be 16, causing a mismatch. Overriding to the correct value.
+        vae_stride = [1, 8, 8]
         if ref_images is None:
             ref_images = [None] * len(masks)
         else:
