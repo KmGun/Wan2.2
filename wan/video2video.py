@@ -345,7 +345,24 @@ class CustomWanVace(WanT2V):
         model.eval().requires_grad_(False)
         
         # Wan 2.1 VACE 웨이트만 추출하여 덮어쓰기
-        vace_full_state_dict = torch.load(vace_ckpt_path, map_location='cpu')
+        # Handle both .bin and .safetensors formats
+        if vace_ckpt_path.endswith('.bin'):
+            vace_full_state_dict = torch.load(vace_ckpt_path, map_location='cpu')
+        elif vace_ckpt_path.endswith('.safetensors'):
+            from safetensors.torch import load_file
+            vace_full_state_dict = load_file(vace_ckpt_path)
+        else:
+            # If path is a directory, try to find the checkpoint file
+            import os
+            if os.path.isdir(vace_ckpt_path):
+                safetensors_path = os.path.join(vace_ckpt_path, 'diffusion_pytorch_model.safetensors')
+                if os.path.exists(safetensors_path):
+                    from safetensors.torch import load_file
+                    vace_full_state_dict = load_file(safetensors_path)
+                else:
+                    raise FileNotFoundError(f"No checkpoint file found in {vace_ckpt_path}")
+            else:
+                raise ValueError(f"Unknown checkpoint format: {vace_ckpt_path}")
         vace_filtered_state_dict = {
             k: v for k, v in vace_full_state_dict.items()
             if k.startswith('vace_blocks.') or k.startswith('vace_patch_embedding.')

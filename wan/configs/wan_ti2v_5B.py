@@ -27,8 +27,8 @@ ti2v_5B.window_size = (-1, -1)
 ti2v_5B.qk_norm = True
 ti2v_5B.cross_attn_norm = True
 ti2v_5B.eps = 1e-6
-ti2v_5B.low_noise_checkpoint = 'low_noise_model'
-ti2v_5B.high_noise_checkpoint = 'high_noise_model'
+ti2v_5B.low_noise_checkpoint = ''
+ti2v_5B.high_noise_checkpoint = ''
 
 # inference
 ti2v_5B.boundary = 0.875

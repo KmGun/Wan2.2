@@ -27,7 +27,13 @@ class CustomVaceWanModel(WanModel):
         super().__init__(model_type, patch_size, text_len, in_dim, dim, ffn_dim,
                          freq_dim, text_dim, out_dim, num_heads, num_layers,
                          window_size, qk_norm, cross_attn_norm, eps)
-        self.vace_layers = vace_layers
+        self.vace_layers = vace_layers if vace_layers is not None else []
+        
+        # Create vace_layers_mapping if vace_layers is provided
+        self.vace_layers_mapping = {}
+        if self.vace_layers:
+            for idx, layer_num in enumerate(self.vace_layers):
+                self.vace_layers_mapping[layer_num] = idx
         
         # Vace WanModel blocks
         self.blocks = nn.ModuleList([
@@ -40,8 +46,7 @@ class CustomVaceWanModel(WanModel):
                 self.qk_norm,
                 self.cross_attn_norm,
                 self.eps,
-                block_id=self.vace_layers_mapping[i]
-                if i in self.vace_layers else None)
+                block_id=self.vace_layers_mapping.get(i, None))
             for i in range(self.num_layers)
         ])
 
@@ -58,7 +63,7 @@ class CustomVaceWanModel(WanModel):
                 self.cross_attn_norm,
                 self.eps,
                 block_id=i) for i in self.vace_layers
-        ])
+        ]) if self.vace_layers else nn.ModuleList()
 
     def forward(
         self,
@@ -156,8 +161,9 @@ class VaceWanAttentionBlock(WanAttentionBlock):
                  cross_attn_norm=False,
                  eps=1e-6,
                  block_id=0):
-        super().__init__(cross_attn_type, dim, ffn_dim, num_heads, window_size,
+        super().__init__(dim, ffn_dim, num_heads, window_size,
                          qk_norm, cross_attn_norm, eps)
+        self.cross_attn_type = cross_attn_type
         self.block_id = block_id
         if block_id == 0:
             self.before_proj = nn.Linear(self.dim, self.dim)
@@ -187,8 +193,9 @@ class BaseWanAttentionBlock(WanAttentionBlock):
                  cross_attn_norm=False,
                  eps=1e-6,
                  block_id=None):
-        super().__init__(cross_attn_type, dim, ffn_dim, num_heads, window_size,
+        super().__init__(dim, ffn_dim, num_heads, window_size,
                          qk_norm, cross_attn_norm, eps)
+        self.cross_attn_type = cross_attn_type
         self.block_id = block_id
 
     def forward(self, x, hints, context_scale=1.0, **kwargs):
