@@ -157,7 +157,7 @@ class CustomWanVace(WanT2V):
         no_sync_low_noise = getattr(self.low_noise_model, 'no_sync', noop_no_sync)
         no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',noop_no_sync)
         # 스케줄러 설정 (노이즈 제거 방법)
-        with amp.autocast(dtype=self.param_dtype), torch.no_grad(), no_sync_low_noise(), no_sync_high_noise:
+        with amp.autocast(dtype=self.param_dtype), torch.no_grad(), no_sync_low_noise(), no_sync_high_noise():
 
             if sample_solver == 'unipc':
                 sample_scheduler = FlowUniPCMultistepScheduler(
@@ -283,7 +283,7 @@ class CustomWanVace(WanT2V):
         # HACK: The vae_stride value from the config seems incorrect for this model (ti2v-5B).
         # The VAE uses a stride of 8 (e.g., 1280 -> 160), but the stride for width
         # appears to be 16, causing a mismatch. Overriding to the correct value.
-        vae_stride = [1, 8, 8]
+        vae_stride = (4, 8, 8)
         if ref_images is None:
             ref_images = [None] * len(masks)
         else:
