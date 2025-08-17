@@ -332,7 +332,9 @@ class CustomWanVace(WanT2V):
             base_expert_path,
             vace_ckpt_path,
     ):
-        model = CustomVaceWanModel(**model_config)
+        # __name__ 키 제거하고 전달
+        filtered_config = {k: v for k, v in model_config.items() if k != '__name__'}
+        model = CustomVaceWanModel(**filtered_config)
 
         # Wan 2.2 전체 웨이트 로드
         base_state_dict = torch.load(base_expert_path, map_location='cpu')
