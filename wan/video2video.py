@@ -72,16 +72,18 @@ class CustomWanVace(WanT2V):
         )
 
         # 2개 MoE DiT 모델 준비
-        self.low_noise_model = self._load_combined_expert(
-            model_config=config,
-            base_expert_path=os.path.join(wan2_2_ckpt_dir,config.low_noise_checkpoint, 'pytorch_model.bin'),
-            vace_ckpt_path=wan2_1_vace_ckpt_path
-        )
-        self.high_noise_model = self._load_combined_expert(
-            model_config=config,
-            base_expert_path=os.path.join(wan2_2_ckpt_dir,config.high_noise_checkpoint, 'pytorch_model.bin'),
-            vace_ckpt_path=wan2_1_vace_ckpt_path
-        )
+        logging.info(f"Creating CustomVaceWanModel from {wan2_2_ckpt_dir}")
+        self.low_noise_model = CustomVaceWanModel.from_pretrained(
+            wan2_2_ckpt_dir, subfolder=config.low_noise_checkpoint)
+        self.low_noise_model = self._configure_vace_model(
+            model=self.low_noise_model,
+            vace_ckpt_path=wan2_1_vace_ckpt_path)
+        
+        self.high_noise_model = CustomVaceWanModel.from_pretrained(
+            wan2_2_ckpt_dir, subfolder=config.high_noise_checkpoint)
+        self.high_noise_model = self._configure_vace_model(
+            model=self.high_noise_model,
+            vace_ckpt_path=wan2_1_vace_ckpt_path)
 
     def generate (self,
                   input_frames,
@@ -326,41 +328,36 @@ class CustomWanVace(WanT2V):
 
         return vae.decode(trimed_zs)
     
-    def _load_combined_expert(
-            self,
-            model_config,
-            base_expert_path,
-            vace_ckpt_path,
-    ):
-        # CustomVaceWanModel에 필요한 파라미터만 추출
-        valid_params = [
-            'vace_layers', 'vace_in_dim', 'model_type', 'patch_size', 'text_len', 
-            'in_dim', 'dim', 'ffn_dim', 'freq_dim', 'text_dim', 'out_dim', 
-            'num_heads', 'num_layers', 'window_size', 'qk_norm', 'cross_attn_norm', 'eps'
-        ]
-        filtered_config = {k: v for k, v in model_config.items() if k in valid_params}
-        model = CustomVaceWanModel(**filtered_config)
-
-        # Wan 2.2 전체 웨이트 로드
-        base_state_dict = torch.load(base_expert_path, map_location='cpu')
-        model.load_state_dict(base_state_dict, strict=False)
-
-        # Wan 2.1 VACE 웨이트만 추출
+    def _configure_vace_model(self, model, vace_ckpt_path):
+        """
+        Configures a VACE model with additional VACE weights.
+        
+        Args:
+            model (torch.nn.Module):
+                The model instance to configure.
+            vace_ckpt_path (str):
+                Path to VACE checkpoint file.
+        
+        Returns:
+            torch.nn.Module:
+                The configured model.
+        """
+        model.eval().requires_grad_(False)
+        
+        # Wan 2.1 VACE 웨이트만 추출하여 덮어쓰기
         vace_full_state_dict = torch.load(vace_ckpt_path, map_location='cpu')
         vace_filtered_state_dict = {
             k: v for k, v in vace_full_state_dict.items()
-            if k.startswith('vace_blocks.') or k.startswith(
-            'vace_patch_embedding.')
+            if k.startswith('vace_blocks.') or k.startswith('vace_patch_embedding.')
         }
-
-        # 덮어쓰기
+        
         if vace_filtered_state_dict:
             model.load_state_dict(vace_filtered_state_dict, strict=False)
+            logging.info(f"Loaded VACE weights from {vace_ckpt_path}")
         else:
-            logging.warning("No VACE Weights Found")
+            logging.warning("No VACE weights found in checkpoint")
         
         model.to(self.device)
-        model.eval().requires_grad_(False)
         return model
 
     def prepare_source(self, src_video, src_mask, src_ref_images, num_frames,

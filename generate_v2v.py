@@ -34,7 +34,6 @@ def _parse_args():
     parser.add_argument("--offload-model", action="store_true", help="메모리 절약을 위해 모델 오프로딩 활성화.")
     return parser.parse_args()
 
-
 def main():
     args = _parse_args()
     print(f"[LOG] 인자 파싱 완료. 태스크: {args.task}, 프롬프트: {args.prompt}")
