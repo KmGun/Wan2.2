@@ -377,10 +377,21 @@ class CustomWanVace(WanT2V):
         }
         
         if vace_filtered_state_dict:
-            model.load_state_dict(vace_filtered_state_dict, strict=False)
+            # Use assign=True to properly load weights into meta tensors
+            model.load_state_dict(vace_filtered_state_dict, strict=False, assign=True)
             logging.info(f"Loaded VACE weights from {vace_ckpt_path}")
         else:
             logging.warning("No VACE weights found in checkpoint")
+
+        # Manually initialize layers that were not in any checkpoint (still meta tensors)
+        try:
+            # Move to device first, creating a real tensor with uninitialized data
+            model.vace_proj.to_empty(device=self.device)
+            # Now initialize with random weights
+            model.vace_proj.reset_parameters()
+        except AttributeError:
+            # This model doesn't have a vace_proj layer, which is fine.
+            pass
         
         if not keep_on_cpu:
             model.to(self.device)
