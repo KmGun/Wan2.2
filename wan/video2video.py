@@ -52,8 +52,11 @@ class CustomWanVace(WanT2V):
         self.boundary = config.boundary
         self.sp_size = 1
         self.patch_size = config.patch_size
+        self.vae_stride = config.vae_stride  # Add vae_stride from config
         self.sample_neg_prompt = config.sample_neg_prompt
         self.init_on_cpu = kwargs.get('init_on_cpu', True)
+        self.offload_model = kwargs.get('offload_model', True)
+        self.vae_stride = config.vae_stride
 
         # T5 인코더 준비
         self.text_encoder = T5EncoderModel(
@@ -77,13 +80,15 @@ class CustomWanVace(WanT2V):
             wan2_2_ckpt_dir, subfolder=config.low_noise_checkpoint)
         self.low_noise_model = self._configure_vace_model(
             model=self.low_noise_model,
-            vace_ckpt_path=wan2_1_vace_ckpt_path)
+            vace_ckpt_path=wan2_1_vace_ckpt_path,
+            keep_on_cpu=self.init_on_cpu)
         
         self.high_noise_model = CustomVaceWanModel.from_pretrained(
             wan2_2_ckpt_dir, subfolder=config.high_noise_checkpoint)
         self.high_noise_model = self._configure_vace_model(
             model=self.high_noise_model,
-            vace_ckpt_path=wan2_1_vace_ckpt_path)
+            vace_ckpt_path=wan2_1_vace_ckpt_path,
+            keep_on_cpu=self.init_on_cpu)
 
     def generate (self,
                   input_frames,
@@ -285,8 +290,8 @@ class CustomWanVace(WanT2V):
         for mask, refs in zip(masks, ref_images):
             c, depth, height, width = mask.shape
             new_depth = int((depth + 3) // vae_stride[0])
-            height = 2 * (int(height) // (vae_stride[1] * 2))
-            width = 2 * (int(width) // (vae_stride[2] * 2))
+            height = int(height) // vae_stride[1]
+            width = int(width) // vae_stride[2]
 
             # reshape
             mask = mask[0, :, :, :]
@@ -328,7 +333,7 @@ class CustomWanVace(WanT2V):
 
         return vae.decode(trimed_zs)
     
-    def _configure_vace_model(self, model, vace_ckpt_path):
+    def _configure_vace_model(self, model, vace_ckpt_path, keep_on_cpu=False):
         """
         Configures a VACE model with additional VACE weights.
         
@@ -374,50 +379,96 @@ class CustomWanVace(WanT2V):
         else:
             logging.warning("No VACE weights found in checkpoint")
         
-        model.to(self.device)
+        if not keep_on_cpu:
+            model.to(self.device)
         return model
 
     def prepare_source(self, src_video, src_mask, src_ref_images, num_frames,
                        image_size, device):
+        import imageio
+        import numpy as np
+        
+        # Validate image size
         area = image_size[0] * image_size[1]
-        self.vid_proc.set_area(area)
-        if area == 720 * 1280:
-            self.vid_proc.set_seq_len(75600)
-        elif area == 480 * 832:
-            self.vid_proc.set_seq_len(32760)
-        elif area == (704 * 1280):
-            # This is a fix for ti2v-5B resolutions (704*1280 or 1280*704).
-            # This assumes frame_num=81 (default in generate_v2v.py).
-            self.vid_proc.set_seq_len(18480)
-        else:
+        if area not in [720 * 1280, 480 * 832, 704 * 1280]:
             raise NotImplementedError(
                 f'image_size {image_size} is not supported')
 
+        # Swap dimensions for processing (height, width)
         image_size = (image_size[1], image_size[0])
         image_sizes = []
-        for i, (sub_src_video,
-                sub_src_mask) in enumerate(zip(src_video, src_mask)):
+        
+        for i, (sub_src_video, sub_src_mask) in enumerate(zip(src_video, src_mask)):
             if sub_src_mask is not None and sub_src_video is not None:
-                src_video[i], src_mask[
-                    i], _, _, _ = self.vid_proc.load_video_pair(
-                        sub_src_video, sub_src_mask)
-                src_video[i] = src_video[i].to(device)
-                src_mask[i] = src_mask[i].to(device)
-                src_mask[i] = torch.clamp(
-                    (src_mask[i][:1, :, :, :] + 1) / 2, min=0, max=1)
+                # Load video and mask pair
+                video_reader = imageio.get_reader(sub_src_video)
+                mask_reader = imageio.get_reader(sub_src_mask)
+                
+                video_frames = []
+                mask_frames = []
+                
+                for frame_idx in range(min(num_frames, len(video_reader))):
+                    # Load video frame
+                    frame = video_reader.get_data(frame_idx)
+                    frame = Image.fromarray(frame).convert("RGB")
+                    frame = frame.resize(image_size[::-1], Image.LANCZOS)
+                    frame = TF.to_tensor(frame).sub_(0.5).div_(0.5)
+                    video_frames.append(frame)
+                    
+                    # Load mask frame
+                    mask = mask_reader.get_data(frame_idx)
+                    if len(mask.shape) == 3:
+                        mask = mask[:,:,0]  # Take first channel if RGB
+                    mask = Image.fromarray(mask).convert("L")
+                    mask = mask.resize(image_size[::-1], Image.LANCZOS)
+                    mask = TF.to_tensor(mask)
+                    mask_frames.append(mask)
+                
+                video_reader.close()
+                mask_reader.close()
+                
+                # Pad if needed
+                while len(video_frames) < num_frames:
+                    video_frames.append(video_frames[-1])
+                    mask_frames.append(mask_frames[-1])
+                
+                src_video[i] = torch.stack(video_frames, dim=1).to(device)
+                src_mask[i] = torch.stack(mask_frames, dim=1).to(device)
+                src_mask[i] = torch.clamp(src_mask[i], min=0, max=1)
                 image_sizes.append(src_video[i].shape[2:])
+                
             elif sub_src_video is None:
+                # Create empty video with mask
                 src_video[i] = torch.zeros(
                     (3, num_frames, image_size[0], image_size[1]),
                     device=device)
-                src_mask[i] = torch.ones_like(src_video[i], device=device)
+                src_mask[i] = torch.ones_like(src_video[i][:1], device=device)
                 image_sizes.append(image_size)
+                
             else:
-                src_video[i], _, _, _ = self.vid_proc.load_video(sub_src_video)
-                src_video[i] = src_video[i].to(device)
-                src_mask[i] = torch.ones_like(src_video[i], device=device)
+                # Load video only (no mask)
+                video_reader = imageio.get_reader(sub_src_video)
+                video_frames = []
+                
+                for frame_idx in range(min(num_frames, len(video_reader))):
+                    frame = video_reader.get_data(frame_idx)
+                    frame = Image.fromarray(frame).convert("RGB")
+                    frame = frame.resize(image_size[::-1], Image.LANCZOS)
+                    frame = TF.to_tensor(frame).sub_(0.5).div_(0.5)
+                    video_frames.append(frame)
+                
+                video_reader.close()
+                
+                # Pad if needed
+                while len(video_frames) < num_frames:
+                    video_frames.append(video_frames[-1])
+                
+                src_video[i] = torch.stack(video_frames, dim=1).to(device)
+                src_mask[i] = torch.ones((1, num_frames, image_size[0], image_size[1]), 
+                                        device=device)
                 image_sizes.append(src_video[i].shape[2:])
 
+        # Process reference images
         for i, ref_images in enumerate(src_ref_images):
             if ref_images is not None:
                 image_size = image_sizes[i]

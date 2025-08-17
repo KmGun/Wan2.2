@@ -49,7 +49,9 @@ def main():
         wan2_2_ckpt_dir=args.ckpt_dir,
         wan2_1_vace_ckpt_path=args.vace_ckpt_path,
         vae_ckpt_path=args.vae_ckpt_path,
-        device_id=0
+        device_id=0,
+        init_on_cpu=True,
+        offload_model=args.offload_model
     )
     print("[LOG] 모델 초기화 완료")
 
@@ -64,8 +66,8 @@ def main():
         src_video_list,
         src_mask_list,
         src_ref_images_list,
-        frame_num=args.frame_num,
-        size=SIZE_CONFIGS[args.size],
+        num_frames=args.frame_num,
+        image_size=SIZE_CONFIGS[args.size],
         device=wan_vace.device
     )
     print("[LOG] 소스 데이터 준비 완료")
