@@ -79,8 +79,12 @@ class CustomVaceWanModel(WanModel):
         # 1. Pad input from 16 to 48 channels
         x_padded = []
         for u in x:
-            pad = torch.zeros(u.shape[0], 32, *u.shape[2:], device=u.device, dtype=u.dtype)
-            x_padded.append(torch.cat([u, pad], dim=1))
+            # Correctly create a padding tensor of shape (32, D, H, W)
+            pad_shape = (32, *u.shape[1:])
+            pad = torch.zeros(pad_shape, device=u.device, dtype=u.dtype)
+            # Correctly concatenate along the channel dimension (dim=0)
+            padded_u = torch.cat([u, pad], dim=0)
+            x_padded.append(padded_u)
         x = x_padded
         # =================================================================
 
@@ -142,7 +146,7 @@ class CustomVaceWanModel(WanModel):
         # =================================================================
         # HACK: Adapt 48-channel output from Wan2.2 Model to 16-channel for Wan2.1 VAE
         # 2. Truncate output from 48 to 16 channels
-        x_truncated = [u[:, :16, ...] for u in x]
+        x_truncated = [u[:16, ...] for u in x]
         x = x_truncated
         # =================================================================
 
