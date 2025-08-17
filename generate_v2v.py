@@ -12,6 +12,7 @@ def _parse_args():
     # --- 경로 관련 인자 ---
     parser.add_argument("--ckpt-dir", type=str, required=True, help="Wan2.2 베이스 모델 디렉토리 경로 (예: ./Wan2.2-T2V-A14B).")
     parser.add_argument("--vace-ckpt-path", type=str, required=True, help="Wan2.1-VACE 체크포인트 파일 경로 (예: ./Wan2.1-VACE-14B/pytorch_model.bin).")
+    parser.add_argument("--vae-ckpt-path", type=str, default=None, help="VAE 체크포인트 파일 경로 (미지정시 베이스 모델의 기본 VAE 사용).")
     parser.add_argument("--input-video", type=str, required=True, help="변환할 원본 비디오 파일 경로.")
     parser.add_argument("--output-path", type=str, default="v2v_output.mp4", help="생성된 비디오를 저장할 경로.")
 
@@ -48,6 +49,7 @@ def main():
         config=config,
         wan2_2_ckpt_dir=args.ckpt_dir,
         wan2_1_vace_ckpt_path=args.vace_ckpt_path,
+        vae_ckpt_path=args.vae_ckpt_path,
         device_id=0
     )
     print("[LOG] 모델 초기화 완료")

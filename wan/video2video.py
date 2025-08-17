@@ -16,8 +16,9 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 from tqdm import tqdm
 
-from .modules.vae2_1 import Wan2_1_VAE
+
 from .modules.vace_v2v_model import CustomVaceWanModel
+from .modules.vae import WanVAE
 from .text2video import (
     FlowDPMSolverMultistepScheduler,
     FlowUniPCMultistepScheduler,
@@ -27,7 +28,6 @@ from .text2video import (
     retrieve_timesteps,
     shard_model,
 )
-from .modules.vae2_2 import WanVAE_ as WanVAE
 from contextlib import contextmanager
 from .text2video import WanT2V
 
@@ -37,6 +37,7 @@ class CustomWanVace(WanT2V):
         config,
         wan2_2_ckpt_dir: str,
         wan2_1_vace_ckpt_path : str,
+        vae_ckpt_path: str = None,
         device_id = 0,
         **kwargs
     ):
@@ -64,8 +65,9 @@ class CustomWanVace(WanT2V):
         )
 
         # VAE 준비
-        self.vae = Wan2_1_VAE(
-            vae_pth=os.path.join(wan2_2_ckpt_dir, config.vae_checkpoint),
+        vae_path = vae_ckpt_path if vae_ckpt_path else os.path.join(wan2_2_ckpt_dir, config.vae_checkpoint)
+        self.vae = WanVAE(
+            vae_pth=vae_path,
             device=self.device
         )
 
