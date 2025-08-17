@@ -27,6 +27,7 @@ class CustomVaceWanModel(WanModel):
         super().__init__(model_type, patch_size, text_len, in_dim, dim, ffn_dim,
                          freq_dim, text_dim, out_dim, num_heads, num_layers,
                          window_size, qk_norm, cross_attn_norm, eps)
+        self.vace_layers = vace_layers
         
         # Vace WanModel blocks
         self.blocks = nn.ModuleList([
