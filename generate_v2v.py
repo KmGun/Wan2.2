@@ -18,7 +18,7 @@ def _parse_args():
     # --- 생성 제어 관련 인자 ---
     parser.add_argument("--prompt", type=str, required=True, help="비디오 생성을 위한 텍스트 프롬프트.")
     parser.add_argument("--neg-prompt", type=str, default="", help="부정 프롬프트.")
-    parser.add_argument("--task", type=str, default="t2v-A14B", choices=['t2v-A14B', 'i2v-A14B'], help="사용할 Wan2.2 베이스 모델 태스크.")
+    parser.add_argument("--task", type=str, default="t2v-A14B", choices=['t2v-A14B', 'i2v-A14B', 'ti2v-5B'], help="사용할 Wan2.2 베이스 모델 태스크.")
     parser.add_argument("--sampling-steps", type=int, default=50, help="샘플링 스텝 수.")
     parser.add_argument("--context-scale", type=float, default=1.0, help="VACE 컨텍스트(구조)의 영향력. (기본값: 1.0)")
     parser.add_argument("--seed", type=int, default=-1, help="랜덤 시드.")

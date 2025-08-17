@@ -362,6 +362,10 @@ class CustomWanVace(WanT2V):
             self.vid_proc.set_seq_len(75600)
         elif area == 480 * 832:
             self.vid_proc.set_seq_len(32760)
+        elif area == (704 * 1280):
+            # This is a fix for ti2v-5B resolutions (704*1280 or 1280*704).
+            # This assumes frame_num=81 (default in generate_v2v.py).
+            self.vid_proc.set_seq_len(18480)
         else:
             raise NotImplementedError(
                 f'image_size {image_size} is not supported')
