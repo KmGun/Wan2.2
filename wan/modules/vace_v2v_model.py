@@ -74,6 +74,16 @@ class CustomVaceWanModel(WanModel):
         seq_len,
         vace_context_scale=1.0,
     ):
+        # =================================================================
+        # HACK: Adapt 16-channel input from Wan2.1 VAE to 48-channel Wan2.2 Model
+        # 1. Pad input from 16 to 48 channels
+        x_padded = []
+        for u in x:
+            pad = torch.zeros(u.shape[0], 32, *u.shape[2:], device=u.device, dtype=u.dtype)
+            x_padded.append(torch.cat([u, pad], dim=1))
+        x = x_padded
+        # =================================================================
+
         # 디바이스 정렬 : 패치 임베딩 모델 - 주파수값 동일 위치에 정렬.
         device = self.patch_embedding.weight.device
         if self.freqs.device != device:
@@ -128,6 +138,14 @@ class CustomVaceWanModel(WanModel):
         # 텐서 -> 패치 -> 동영상
         x = self.head(x, e)
         x = self.unpatchify(x, grid_sizes)
+        
+        # =================================================================
+        # HACK: Adapt 48-channel output from Wan2.2 Model to 16-channel for Wan2.1 VAE
+        # 2. Truncate output from 48 to 16 channels
+        x_truncated = [u[:, :16, ...] for u in x]
+        x = x_truncated
+        # =================================================================
+
         return [u.float() for u in x]
 
     def forward_vace(self, x, vace_context, seq_len, kwargs):
