@@ -23,11 +23,11 @@ from .text2video import (
     FlowUniPCMultistepScheduler,
     T5EncoderModel,
     WanT2V,
-    WanVAE,
     get_sampling_sigmas,
     retrieve_timesteps,
     shard_model,
 )
+from .modules.vae2_2 import WanVAE_ as WanVAE
 from contextlib import contextmanager
 from .text2video import WanT2V
 
