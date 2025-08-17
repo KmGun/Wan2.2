@@ -28,6 +28,7 @@ class CustomVaceWanModel(WanModel):
                          freq_dim, text_dim, out_dim, num_heads, num_layers,
                          window_size, qk_norm, cross_attn_norm, eps)
         self.vace_layers = vace_layers if vace_layers is not None else []
+        self.vace_in_dim = self.in_dim if vace_in_dim is None else vace_in_dim
         
         # Create vace_layers_mapping if vace_layers is provided
         self.vace_layers_mapping = {}
@@ -65,6 +66,12 @@ class CustomVaceWanModel(WanModel):
                 block_id=i) for i in self.vace_layers
         ]) if self.vace_layers else nn.ModuleList()
 
+        self.vace_patch_embedding = nn.Conv3d(
+            self.vace_in_dim,
+            self.dim,
+            kernel_size=self.patch_size,
+            stride=self.patch_size)
+        
     def forward(
         self,
         x,
