@@ -66,11 +66,15 @@ class CustomVaceWanModel(WanModel):
                 block_id=i) for i in self.vace_layers
         ]) if self.vace_layers else nn.ModuleList()
 
+        # vace patch embedding (adapted for Wan2.1 checkpoint)
+        # Checkpoint has shape [1536, 96, 1, 2, 2], so in=96, out=1536
         self.vace_patch_embedding = nn.Conv3d(
-            self.vace_in_dim,
-            self.dim,
+            96,  # in_channels from checkpoint
+            1536,  # out_channels from checkpoint
             kernel_size=self.patch_size,
             stride=self.patch_size)
+        # Projection layer to match vace_blocks dimension (self.dim)
+        self.vace_proj = nn.Linear(1536, self.dim)
         
     def forward(
         self,
@@ -160,13 +164,31 @@ class CustomVaceWanModel(WanModel):
         return [u.float() for u in x]
 
     def forward_vace(self, x, vace_context, seq_len, kwargs):
+        # HACK: Pad vace_context to 96 channels to match the adapted layer
+        vace_context_padded = []
+        for u in vace_context:
+            # Assuming input is 80 channels (32 from inactive/reactive + 48 from mask)
+            # This might need adjustment if the assumption is wrong.
+            num_channels = u.shape[0]
+            if num_channels < 96:
+                pad_channels = 96 - num_channels
+                pad_shape = (pad_channels, *u.shape[1:])
+                pad = torch.zeros(pad_shape, device=u.device, dtype=u.dtype)
+                padded_u = torch.cat([u, pad], dim=0)
+                vace_context_padded.append(padded_u)
+            else:
+                vace_context_padded.append(u)
+        c = vace_context_padded
+
         # embeddings
-        c = [self.vace_patch_embedding(u.unsqueeze(0)) for u in vace_context]
+        c = [self.vace_patch_embedding(u.unsqueeze(0)) for u in c]
         c = [u.flatten(2).transpose(1, 2) for u in c]
         c = torch.cat([
             torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))],
                       dim=1) for u in c
         ])
+        # Apply projection to match dimensions
+        c = self.vace_proj(c)
 
         # arguments
         new_kwargs = dict(x=x)
