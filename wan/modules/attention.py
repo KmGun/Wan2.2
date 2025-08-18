@@ -1,22 +1,17 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import torch
 
-# Disable flash attention to avoid CUDA errors
-FLASH_ATTN_3_AVAILABLE = False
-FLASH_ATTN_2_AVAILABLE = False
+try:
+    import flash_attn_interface
+    FLASH_ATTN_3_AVAILABLE = True
+except ModuleNotFoundError:
+    FLASH_ATTN_3_AVAILABLE = False
 
-# Original imports commented out
-# try:
-#     import flash_attn_interface
-#     FLASH_ATTN_3_AVAILABLE = True
-# except ModuleNotFoundError:
-#     FLASH_ATTN_3_AVAILABLE = False
-# 
-# try:
-#     import flash_attn
-#     FLASH_ATTN_2_AVAILABLE = True
-# except ModuleNotFoundError:
-#     FLASH_ATTN_2_AVAILABLE = False
+try:
+    import flash_attn
+    FLASH_ATTN_2_AVAILABLE = True
+except ModuleNotFoundError:
+    FLASH_ATTN_2_AVAILABLE = False
 
 import warnings
 
