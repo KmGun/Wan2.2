@@ -10,9 +10,9 @@ import torch.profiler
 sys.path.insert(0, os.getcwd())
 
 from wan.video2video import CustomWanVace
-from wan.configs.wan_ti2v_5B import config as ti2v_5b_config
-from wan.configs.wan_i2v_A14B import config as i2v_a14b_config
-from wan.configs.wan_t2v_A14B import config as t2v_a14b_config
+from wan.configs.wan_ti2v_5B import ti2v_5B as ti2v_5b_config
+from wan.configs.wan_i2v_A14B import i2v_A14B as i2v_a14b_config
+from wan.configs.wan_t2v_A14B import t2v_A14B as t2v_a14b_config
 
 # --- Utility Functions ---
 def setup_logging():
