@@ -189,15 +189,35 @@ class WanT2V:
         else:
             required_model_name = 'low_noise_model'
             offload_model_name = 'high_noise_model'
+        
+        print(f"--- Timestep: {t.item():.2f} | Required: {required_model_name} | Offloading: {offload_model_name} ---")
+
         if offload_model or self.init_on_cpu:
-            if next(getattr(
-                    self,
-                    offload_model_name).parameters()).device.type == 'cuda':
-                getattr(self, offload_model_name).to('cpu')
-            if next(getattr(
-                    self,
-                    required_model_name).parameters()).device.type == 'cpu':
-                getattr(self, required_model_name).to(self.device)
+            offload_model_obj = getattr(self, offload_model_name)
+            if next(offload_model_obj.parameters()).device.type == 'cuda':
+                print(f"Offloading '{offload_model_name}' to CPU...")
+                print(">>> VRAM state BEFORE offloading:")
+                print(torch.cuda.memory_summary(device=self.device))
+                
+                offload_model_obj.to('cpu')
+                torch.cuda.empty_cache() # Clear cache after moving
+                
+                print(f"'{offload_model_name}' successfully offloaded.")
+                print(">>> VRAM state AFTER offloading:")
+                print(torch.cuda.memory_summary(device=self.device))
+
+            required_model_obj = getattr(self, required_model_name)
+            if next(required_model_obj.parameters()).device.type == 'cpu':
+                print(f"Loading '{required_model_name}' to GPU...")
+                print(">>> VRAM state BEFORE loading:")
+                print(torch.cuda.memory_summary(device=self.device))
+                
+                required_model_obj.to(self.device)
+                
+                print(f"'{required_model_name}' successfully loaded.")
+                print(">>> VRAM state AFTER loading:")
+                print(torch.cuda.memory_summary(device=self.device))
+
         return getattr(self, required_model_name)
 
     def generate(self,
