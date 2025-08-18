@@ -85,6 +85,7 @@ class CustomVaceWanModel(WanModel):
         seq_len,
         vace_context_scale=1.0,
     ):
+        print(f"[DEBUG] Start forward. Initial allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         # =================================================================
         # HACK: Adapt 16-channel input from Wan2.1 VAE to 48-channel Wan2.2 Model
         # 1. Pad input from 16 to 48 channels
@@ -98,6 +99,7 @@ class CustomVaceWanModel(WanModel):
             x_padded.append(padded_u)
         x = x_padded
         # =================================================================
+        print(f"[DEBUG] After input padding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # 디바이스 정렬 : 패치 임베딩 모델 - 주파수값 동일 위치에 정렬.
         device = self.patch_embedding.weight.device
@@ -115,6 +117,7 @@ class CustomVaceWanModel(WanModel):
             torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))],
                       dim=1) for u in x
         ])
+        print(f"[DEBUG] After patch embedding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # freq 임베딩 : self.freqs (주파수값) -> 주파수값
         with amp.autocast(dtype=torch.float32):
@@ -122,6 +125,7 @@ class CustomVaceWanModel(WanModel):
                 sinusoidal_embedding_1d(self.freq_dim, t).float())
             e0 = self.time_projection(e).unflatten(1, (6, self.dim))
             assert e.dtype == torch.float32 and e0.dtype == torch.float32
+        print(f"[DEBUG] After time embedding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         
         # context 2차 임베딩
         context_lens = None
@@ -131,6 +135,7 @@ class CustomVaceWanModel(WanModel):
                     [u, u.new_zeros(self.text_len - u.size(0), u.size(1))])
                 for u in context
             ]))
+        print(f"[DEBUG] After text embedding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # args
         kwargs = dict(
@@ -143,16 +148,21 @@ class CustomVaceWanModel(WanModel):
         kwargs['context_scale'] = vace_context_scale
         
         # VACE 과정
+        print(f"[DEBUG] Before forward_vace. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         hints = self.forward_vace(x, vace_context, seq_len, kwargs)
         kwargs['hints'] = hints
+        print(f"[DEBUG] After forward_vace. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # VACEWanModel 통과
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             x = block(x, **kwargs)
+            print(f"[DEBUG] After block {i}. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
 
         # 텐서 -> 패치 -> 동영상
         x = self.head(x, e)
         x = self.unpatchify(x, grid_sizes)
+        print(f"[DEBUG] After unpatchify. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         
         # =================================================================
         # HACK: Adapt 48-channel output from Wan2.2 Model to 16-channel for Wan2.1 VAE
@@ -160,10 +170,12 @@ class CustomVaceWanModel(WanModel):
         x_truncated = [u[:16, ...] for u in x]
         x = x_truncated
         # =================================================================
+        print(f"[DEBUG] End of forward. Final allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         return [u.float() for u in x]
 
     def forward_vace(self, x, vace_context, seq_len, kwargs):
+        print(f"[DEBUG] Start forward_vace. Initial allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         # HACK: Pad vace_context to 96 channels to match the adapted layer
         vace_context_padded = []
         for u in vace_context:
@@ -179,6 +191,7 @@ class CustomVaceWanModel(WanModel):
             else:
                 vace_context_padded.append(u)
         c = vace_context_padded
+        print(f"[DEBUG] forward_vace after padding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # embeddings
         c = [self.vace_patch_embedding(u.unsqueeze(0)) for u in c]
@@ -187,17 +200,22 @@ class CustomVaceWanModel(WanModel):
             torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))],
                       dim=1) for u in c
         ])
+        print(f"[DEBUG] forward_vace after patch embedding. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         # Apply projection to match dimensions
         c = self.vace_proj(c)
+        print(f"[DEBUG] forward_vace after projection. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # arguments
         new_kwargs = dict(x=x)
         new_kwargs.update(kwargs)
 
         hints = []
-        for block in self.vace_blocks:
+        for i, block in enumerate(self.vace_blocks):
             c, c_skip = block(c, **new_kwargs)
             hints.append(c_skip)
+            print(f"[DEBUG] forward_vace after block {i}. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        
+        print(f"[DEBUG] End of forward_vace. Final allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         return hints
 
 class VaceWanAttentionBlock(WanAttentionBlock):
