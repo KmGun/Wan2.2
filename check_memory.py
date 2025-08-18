@@ -15,7 +15,7 @@ def log_memory(device, stage=""):
     print("---------------------------------")
 
 # --- 몽키 패칭을 위한 새로운 forward 함수 ---
-def patched_attention_forward(self, x, e, seq_lens, grid_sizes, freqs, context, context_lens):
+def patched_attention_forward(self, x, e, seq_lens, grid_sizes, freqs, context, context_lens, **kwargs):
     device = x.device
     torch.cuda.synchronize(device)
     
