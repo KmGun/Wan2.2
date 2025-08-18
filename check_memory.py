@@ -8,18 +8,11 @@ from wan.configs import WAN_CONFIGS, SIZE_CONFIGS
 import os
 
 # --- 로깅 유틸리티 ---
-def format_mem(size_bytes):
-    """메모리 크기를 GB 단위로 변환"""
-    return f"{size_bytes / (1024**3):.2f} GB"
-
 def log_memory(device, stage=""):
-    """현재 및 최대 메모리 사용량 로깅"""
-    print(f"--- {stage} ---")
-    current_mem = torch.cuda.memory_allocated(device)
-    peak_mem = torch.cuda.max_memory_allocated(device)
-    print(f"Current VRAM: {format_mem(current_mem)}")
-    print(f"Peak VRAM:    {format_mem(peak_mem)}")
-    print("--------------------")
+    """지정된 단계에서 상세한 CUDA 메모리 요약을 출력합니다."""
+    print(f"--- Memory Summary at: {stage} ---")
+    print(torch.cuda.memory_summary(device=device))
+    print("---------------------------------")
 
 # --- 몽키 패칭을 위한 새로운 forward 함수 ---
 def patched_attention_forward(self, x, e, seq_lens, grid_sizes, freqs, context, context_lens):
