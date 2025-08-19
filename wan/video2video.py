@@ -211,7 +211,7 @@ class CustomWanVace(WanT2V):
                     **arg_null)[0]
 
                 # CFG 처리
-                current_guide_scale = self.config.sample_guide_scale[1] if t.item() >= self.boundary * self.num_train_timesteps else self.config.sample_guide_scale[0]
+                current_guide_scale = self.config.sample_guide_scale
                 noise_pred = noise_pred_uncond + current_guide_scale * (
                     noise_pred_cond - noise_pred_uncond)
 
