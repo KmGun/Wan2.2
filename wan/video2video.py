@@ -418,119 +418,53 @@ class CustomWanVace(WanT2V):
             model.to(self.device)
         return model
 
-    def prepare_source(self, src_video, src_mask, src_ref_images, num_frames,
-                       image_size, device):
-        import imageio
-        import numpy as np
-        
-        # Validate image size
+    def prepare_source(self, src_video, src_mask, src_ref_images, num_frames, image_size, device):
         area = image_size[0] * image_size[1]
-        if area not in [720 * 1280, 480 * 832, 704 * 1280]:
-            raise NotImplementedError(
-                f'image_size {image_size} is not supported')
+        self.vid_proc.set_area(area)
+        if area == 720*1280:
+            self.vid_proc.set_seq_len(75600)
+        elif area == 480*832:
+            self.vid_proc.set_seq_len(32760)
+        else:
+            raise NotImplementedError(f'image_size {image_size} is not supported')
 
-        # Swap dimensions for processing (height, width)
         image_size = (image_size[1], image_size[0])
         image_sizes = []
-        
         for i, (sub_src_video, sub_src_mask) in enumerate(zip(src_video, src_mask)):
             if sub_src_mask is not None and sub_src_video is not None:
-                # Load video and mask pair
-                video_reader = imageio.get_reader(sub_src_video)
-                mask_reader = imageio.get_reader(sub_src_mask)
-                
-                video_frames = []
-                mask_frames = []
-                
-                for frame_idx in range(min(num_frames, len(video_reader))):
-                    # Load video frame
-                    frame = video_reader.get_data(frame_idx)
-                    frame = Image.fromarray(frame).convert("RGB")
-                    frame = frame.resize(image_size[::-1], Image.LANCZOS)
-                    frame = TF.to_tensor(frame).sub_(0.5).div_(0.5)
-                    video_frames.append(frame)
-                    
-                    # Load mask frame
-                    mask = mask_reader.get_data(frame_idx)
-                    if len(mask.shape) == 3:
-                        mask = mask[:,:,0]  # Take first channel if RGB
-                    mask = Image.fromarray(mask).convert("L")
-                    mask = mask.resize(image_size[::-1], Image.LANCZOS)
-                    mask = TF.to_tensor(mask)
-                    mask_frames.append(mask)
-                
-                video_reader.close()
-                mask_reader.close()
-                
-                # Pad if needed
-                while len(video_frames) < num_frames:
-                    video_frames.append(video_frames[-1])
-                    mask_frames.append(mask_frames[-1])
-                
-                src_video[i] = torch.stack(video_frames, dim=1).to(device)
-                src_mask[i] = torch.stack(mask_frames, dim=1).to(device)
-                src_mask[i] = torch.clamp(src_mask[i], min=0, max=1)
+                src_video[i], src_mask[i], _, _, _ = self.vid_proc.load_video_pair(sub_src_video, sub_src_mask)
+                src_video[i] = src_video[i].to(device)
+                src_mask[i] = src_mask[i].to(device)
+                src_mask[i] = torch.clamp((src_mask[i][:1, :, :, :] + 1) / 2, min=0, max=1)
                 image_sizes.append(src_video[i].shape[2:])
-                
             elif sub_src_video is None:
-                # Create empty video with mask
-                src_video[i] = torch.zeros(
-                    (3, num_frames, image_size[0], image_size[1]),
-                    device=device)
-                src_mask[i] = torch.ones_like(src_video[i][:1], device=device)
+                src_video[i] = torch.zeros((3, num_frames, image_size[0], image_size[1]), device=device)
+                src_mask[i] = torch.ones_like(src_video[i], device=device)
                 image_sizes.append(image_size)
-                
             else:
-                # Load video only (no mask)
-                video_reader = imageio.get_reader(sub_src_video)
-                video_frames = []
-                
-                for frame_idx in range(min(num_frames, len(video_reader))):
-                    frame = video_reader.get_data(frame_idx)
-                    frame = Image.fromarray(frame).convert("RGB")
-                    frame = frame.resize(image_size[::-1], Image.LANCZOS)
-                    frame = TF.to_tensor(frame).sub_(0.5).div_(0.5)
-                    video_frames.append(frame)
-                
-                video_reader.close()
-                
-                # Pad if needed
-                while len(video_frames) < num_frames:
-                    video_frames.append(video_frames[-1])
-                
-                src_video[i] = torch.stack(video_frames, dim=1).to(device)
-                src_mask[i] = torch.ones((1, num_frames, image_size[0], image_size[1]), 
-                                        device=device)
+                src_video[i], _, _, _ = self.vid_proc.load_video(sub_src_video)
+                src_video[i] = src_video[i].to(device)
+                src_mask[i] = torch.ones_like(src_video[i], device=device)
                 image_sizes.append(src_video[i].shape[2:])
 
-        # Process reference images
         for i, ref_images in enumerate(src_ref_images):
             if ref_images is not None:
                 image_size = image_sizes[i]
                 for j, ref_img in enumerate(ref_images):
                     if ref_img is not None:
                         ref_img = Image.open(ref_img).convert("RGB")
-                        ref_img = TF.to_tensor(ref_img).sub_(0.5).div_(
-                            0.5).unsqueeze(1)
+                        ref_img = TF.to_tensor(ref_img).sub_(0.5).div_(0.5).unsqueeze(1)
                         if ref_img.shape[-2:] != image_size:
                             canvas_height, canvas_width = image_size
                             ref_height, ref_width = ref_img.shape[-2:]
-                            white_canvas = torch.ones(
-                                (3, 1, canvas_height, canvas_width),
-                                device=device)  # [-1, 1]
-                            scale = min(canvas_height / ref_height,
-                                        canvas_width / ref_width)
+                            white_canvas = torch.ones((3, 1, canvas_height, canvas_width), device=device) # [-1, 1]
+                            scale = min(canvas_height / ref_height, canvas_width / ref_width)
                             new_height = int(ref_height * scale)
                             new_width = int(ref_width * scale)
-                            resized_image = F.interpolate(
-                                ref_img.squeeze(1).unsqueeze(0),
-                                size=(new_height, new_width),
-                                mode='bilinear',
-                                align_corners=False).squeeze(0).unsqueeze(1)
+                            resized_image = F.interpolate(ref_img.squeeze(1).unsqueeze(0), size=(new_height, new_width), mode='bilinear', align_corners=False).squeeze(0).unsqueeze(1)
                             top = (canvas_height - new_height) // 2
                             left = (canvas_width - new_width) // 2
-                            white_canvas[:, :, top:top + new_height,
-                                         left:left + new_width] = resized_image
+                            white_canvas[:, :, top:top + new_height, left:left + new_width] = resized_image
                             ref_img = white_canvas
                         src_ref_images[i][j] = ref_img.to(device)
         return src_video, src_mask, src_ref_images

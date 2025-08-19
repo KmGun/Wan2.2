@@ -42,6 +42,8 @@ def main():
 
     # 기본 설정 불러오기
     config = WAN_CONFIGS[args.task]
+    local_rank = int(os.getenv("LOCAL_RANK", 0))
+    device = local_rank
     print(f"[LOG] 설정 불러오기 완료. 샘플 FPS: {config.sample_fps}")
 
     # CustomWanVace 클래스 초기화
@@ -57,36 +59,57 @@ def main():
     )
     print("[LOG] 모델 초기화 완료")
 
-    # 비디오, 마스크, 레퍼런스 이미지 전처리
-    print("[LOG] 소스 데이터 준비 시작...")
-    src_video_list = [args.input_video]
-    src_mask_list = [args.input_mask] if args.input_mask else [None]
-    src_ref_images_list = [args.ref_image.split(',')] if args.ref_image else [None]
-    print(f"[LOG] 입력 비디오: {args.input_video}, 프레임 수: {args.frame_num}, 해상도: {args.size}")
-
-    input_frames, input_masks, ref_images = wan_vace.prepare_source(
-        src_video_list,
-        src_mask_list,
-        src_ref_images_list,
-        num_frames=args.frame_num,
-        image_size=SIZE_CONFIGS[args.size],
-        device=wan_vace.device
+    # 스켈레톤 포즈 추출
+    print("[LOG] 스켈레톤 포즈 추출 시작...")
+    from wan.annotators import PoseBodyFaceVideoAnnotator
+    from wan.annotators.utils import read_video_frames, save_one_video
+    
+    frames, *_ = read_video_frames(args.input_video, use_type='cv2', info=True)
+    assert frames is not None, "Video read error"
+    
+    pose_annotator = PoseBodyFaceVideoAnnotator(
+        cfg={
+            "DETECTION_MODEL": "checkpoints/VACE-Annotators/pose/yolox_l.onnx",
+            "POSE_MODEL": "checkpoints/VACE-Annotators/pose/dw-ll_ucoco_384.onnx"
+        },
+        device=f'cuda:{0}'
     )
+    pose_results = pose_annotator.forward(frames=frames)
+    
+    # 포즈 데이터 저장
+    if pose_results and 'frames' in pose_results:
+        pose_output_path = os.path.join(os.path.dirname(args.output_path), 'pose_skeleton.mp4')
+        os.makedirs(os.path.dirname(pose_output_path), exist_ok=True)
+        save_one_video(pose_output_path, pose_results['frames'], fps=config.sample_fps)
+        print(f"[LOG] 포즈 스켈레톤 비디오 저장 완료: {pose_output_path}")
+    
+    print("[LOG] 스켈레톤 포즈 추출 완료")
+
+
+    print("[LOG] 소스 데이터 준비 시작...")
+    src_video, src_mask, src_ref_images = wan_vace.prepare_source([pose_output_path],
+                                                                  [None],
+                                                                  [None if args.src_ref_images is None else args.src_ref_images.split(',')],
+                                                                  args.frame_num, SIZE_CONFIGS[args.size], device)
     print("[LOG] 소스 데이터 준비 완료")
 
     # GENERATE!!
     print("[LOG] 비디오 생성 시작...")
     print(f"[LOG] 샘플링 스텝: {args.sampling_steps}, 컨텍스트 스케일: {args.context_scale}, 시드: {args.seed}")
     video_tensor = wan_vace.generate(
-        input_prompt=args.prompt,
-        input_frames=input_frames,
-        input_masks=input_masks,
-        input_ref_images=ref_images,
+        args.prompt,
+        src_video,
+        src_mask,
+        src_ref_images,
+        size=SIZE_CONFIGS[args.size],
+        frame_num=args.frame_num,
+        shift=args.sample_shift,
+        sample_solver=args.sample_solver,
+        sampling_steps=args.sample_steps,
+        guide_scale=args.sample_guide_scale,
+        offload_model=args.offload_model,
         n_prompt=args.neg_prompt,
-        sampling_steps=args.sampling_steps,
-        context_scale=args.context_scale,
         seed=args.seed,
-        offload_model=args.offload_model
     )
     print("[LOG] 비디오 생성 완료")
 
