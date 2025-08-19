@@ -1,5 +1,7 @@
 import argparse
 import os
+import logging
+import sys
 from PIL import Image
 import imageio
 import torch
@@ -88,13 +90,23 @@ def main():
     )
     print("[LOG] 비디오 생성 완료")
 
-    # 비디오 저장
-    print("[LOG] 비디오 저장 시작...")
+    # --- 강화된 비디오 저장 로직 --
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        stream=sys.stdout
+    )
+
     if video_tensor is not None:
-        save_video(video_tensor,args.output_path, fps=config.sample_fps)
-        print(f"[LOG] 비디오 저장 완료: {args.output_path}")
+        logging.info(f"반환된 비디오 텐서 확인. Shape: {video_tensor.shape}, Dtype: {video_tensor.dtype}")
+        try:
+            logging.info(f"비디오 저장 시도: {args.output_path}")
+            save_video(video_tensor, args.output_path, fps=config.sample_fps)
+            logging.info(f"비디오 저장 완료: {args.output_path}")
+        except Exception as e:
+            logging.error(f"파일 저장 중 오류 발생: {args.output_path}", exc_info=True)
     else:
-        print('[LOG] Video Generation Failed')
+        logging.warning("생성 함수에서 반환된 비디오 텐서가 None입니다. 파일 저장을 건너뜁니다.")
 
 
 if __name__ == "__main__":
