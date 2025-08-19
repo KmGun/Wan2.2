@@ -226,21 +226,40 @@ class CustomWanVace(WanT2V):
 
             # 마무리
             x0 = latents
+            if self.rank == 0:
+                logging.info("Denoising loop finished. Preparing for final video generation.")
+
             if offload_model:
+                if self.rank == 0:
+                    logging.info("Offloading models to CPU...")
                 self.low_noise_model.cpu()
                 self.high_noise_model.cpu()
                 torch.cuda.empty_cache()
+                if self.rank == 0:
+                    logging.info("Models offloaded.")
+
             if self.rank == 0:
+                logging.info("Starting VAE decoding...")
                 videos = self.decode_latent(x0, input_ref_images)
+                logging.info("VAE decoding finished.")
 
         # 4단계 - 비디오 생성 완료
+        if self.rank == 0:
+            logging.info("Cleaning up intermediate tensors and scheduler...")
         del noise, latents
         del sample_scheduler
         if offload_model:
             gc.collect()
             torch.cuda.synchronize()
+        if self.rank == 0:
+            logging.info("Cleanup complete.")
+
         if dist.is_initialized():
+            if self.rank == 0:
+                logging.info("Synchronizing processes...")
             dist.barrier()
+            if self.rank == 0:
+                logging.info("Synchronization complete.")
 
         if self.rank == 0:
             logging.info("All video generation procedures are complete. Returning the result.")
