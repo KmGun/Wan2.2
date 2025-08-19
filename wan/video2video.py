@@ -242,6 +242,8 @@ class CustomWanVace(WanT2V):
         if dist.is_initialized():
             dist.barrier()
 
+        if self.rank == 0:
+            logging.info("All video generation procedures are complete. Returning the result.")
         return videos[0] if self.rank == 0 else None
 
     def vace_encode_frames(self, frames, ref_images, masks=None, vae=None):
