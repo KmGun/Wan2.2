@@ -153,14 +153,14 @@ class CustomVaceWanModel(WanModel):
         kwargs['hints'] = hints
         print(f"[DEBUG] After forward_vace. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
-        # VACEWanModel 통과
+        # VACEWanModel 통과 (Transformer Encoding)
         for i, block in enumerate(self.blocks):
             x = block(x, **kwargs)
             print(f"[DEBUG] After block {i}. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
         # 텐서 -> 패치 -> 동영상
-        x = self.head(x, e)
+        x = self.head(x, e.unsqueeze(1).expand(-1, x.size(1), -1))
         x = self.unpatchify(x, grid_sizes)
         print(f"[DEBUG] After unpatchify. Allocated memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
         
