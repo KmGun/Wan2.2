@@ -98,10 +98,10 @@ def main():
     print("[LOG] 비디오 생성 시작...")
     print(f"[LOG] 샘플링 스텝: {args.sampling_steps}, 컨텍스트 스케일: {args.context_scale}, 시드: {args.seed}")
     video_tensor = wan_vace.generate(
-        args.prompt,
-        src_video,
-        src_mask,
-        src_ref_images,
+        src_video,        # input_frames
+        src_ref_images,   # input_ref_images
+        src_mask,         # input_masks
+        args.prompt,      # input_prompt
         offload_model=args.offload_model,
         n_prompt=args.neg_prompt,
         seed=args.seed,
