@@ -76,10 +76,10 @@ def main():
     pose_results = pose_annotator.forward(frames=frames)
     
     # 포즈 데이터 저장
-    if pose_results and 'frames' in pose_results:
+    if pose_results:
         pose_output_path = os.path.join(os.path.dirname(args.output_path), 'pose_skeleton.mp4')
         os.makedirs(os.path.dirname(pose_output_path), exist_ok=True)
-        save_one_video(pose_output_path, pose_results['frames'], fps=config.sample_fps)
+        save_one_video(pose_output_path, pose_results, fps=config.sample_fps)
         print(f"[LOG] 포즈 스켈레톤 비디오 저장 완료: {pose_output_path}")
     
     print("[LOG] 스켈레톤 포즈 추출 완료")
