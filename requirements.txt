@@ -13,3 +13,9 @@ dashscope
 imageio-ffmpeg
 flash_attn
 numpy>=1.23.5,<2
+onnxruntime>=1.16.0
+onnxruntime-gpu>=1.16.0
+pillow>=9.0.0
+matplotlib>=3.0.0
+pycocotools>=2.0.0
+decord>=0.6.0
