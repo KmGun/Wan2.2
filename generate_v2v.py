@@ -8,6 +8,8 @@ import torch
 from wan.video2video import CustomWanVace
 from wan.configs import WAN_CONFIGS, SIZE_CONFIGS
 from wan.utils.utils import save_video
+from wan.annotators import PoseBodyFaceVideoAnnotator
+from wan.annotators.utils import read_video_frames, save_one_video
 
 def _parse_args():
     parser = argparse.ArgumentParser(description="Video to Video generation using Wan-VACE")
@@ -61,9 +63,6 @@ def main():
 
     # 스켈레톤 포즈 추출
     print("[LOG] 스켈레톤 포즈 추출 시작...")
-    from wan.annotators import PoseBodyFaceVideoAnnotator
-    from wan.annotators.utils import read_video_frames, save_one_video
-    
     frames, *_ = read_video_frames(args.input_video, use_type='cv2', info=True)
     assert frames is not None, "Video read error"
     
@@ -89,9 +88,10 @@ def main():
     print("[LOG] 소스 데이터 준비 시작...")
     src_video, src_mask, src_ref_images = wan_vace.prepare_source([pose_output_path],
                                                                   [None],
-                                                                  [None if args.src_ref_images is None else args.src_ref_images.split(',')],
+                                                                  [None],
                                                                   args.frame_num, SIZE_CONFIGS[args.size], device)
     print("[LOG] 소스 데이터 준비 완료")
+
 
     # GENERATE!!
     print("[LOG] 비디오 생성 시작...")
@@ -103,10 +103,6 @@ def main():
         src_ref_images,
         size=SIZE_CONFIGS[args.size],
         frame_num=args.frame_num,
-        shift=args.sample_shift,
-        sample_solver=args.sample_solver,
-        sampling_steps=args.sample_steps,
-        guide_scale=args.sample_guide_scale,
         offload_model=args.offload_model,
         n_prompt=args.neg_prompt,
         seed=args.seed,

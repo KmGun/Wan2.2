@@ -30,6 +30,7 @@ from .text2video import (
 )
 from contextlib import contextmanager
 from .text2video import WanT2V
+from .utils.preprocessor import VaceVideoProcessor
 
 class CustomWanVace(WanT2V):
     def __init__(
@@ -89,6 +90,16 @@ class CustomWanVace(WanT2V):
             model=self.high_noise_model,
             vace_ckpt_path=wan2_1_vace_ckpt_path,
             keep_on_cpu=self.init_on_cpu)
+        
+        # 비디오 전처리기 준비
+        self.vid_proc = VaceVideoProcessor(downsample=tuple([x * y for x, y in zip(config.vae_stride, self.patch_size)]),
+            min_area=480 * 832,
+            max_area=480 * 832,
+            min_fps=self.config.sample_fps,
+            max_fps=self.config.sample_fps,
+            zero_start=True,
+            seq_len=32760,
+            keep_last=True)
 
     def generate (self,
                   input_frames,
