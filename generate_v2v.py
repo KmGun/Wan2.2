@@ -86,10 +86,11 @@ def main():
 
 
     print("[LOG] 소스 데이터 준비 시작...")
+    size_key = args.size.strip("'\"“”")
     src_video, src_mask, src_ref_images = wan_vace.prepare_source([pose_output_path],
                                                                   [None],
                                                                   [None],
-                                                                  args.frame_num, SIZE_CONFIGS[args.size], device)
+                                                                  args.frame_num, SIZE_CONFIGS[size_key], device)
     print("[LOG] 소스 데이터 준비 완료")
 
 
@@ -101,7 +102,7 @@ def main():
         src_video,
         src_mask,
         src_ref_images,
-        size=SIZE_CONFIGS[args.size],
+        size=SIZE_CONFIGS[size_key],
         frame_num=args.frame_num,
         offload_model=args.offload_model,
         n_prompt=args.neg_prompt,
