@@ -128,8 +128,10 @@ class CustomWanVace(WanT2V):
 
         # context : 프롬프트 임베딩
         self.text_encoder.model.to(self.device)
-        context = self.text_encoder([input_prompt], self.device)
-        context_null = self.text_encoder([n_prompt], self.device)
+        prompt_input = input_prompt if isinstance(input_prompt, list) else [input_prompt]
+        n_prompt_input = n_prompt if isinstance(n_prompt, list) else [n_prompt]
+        context = self.text_encoder(prompt_input, self.device)
+        context_null = self.text_encoder(n_prompt_input, self.device)
         if offload_model:
             self.text_encoder.model.cpu()
 
@@ -436,6 +438,9 @@ class CustomWanVace(WanT2V):
             self.vid_proc.set_seq_len(75600)
         elif area == 480*832:
             self.vid_proc.set_seq_len(32760)
+        # TEMPORARY: Allow 704*1280 and 1280*704 sizes
+        elif area == 704*1280 or area == 1280*704:
+            self.vid_proc.set_seq_len(73920)
         else:
             raise NotImplementedError(f'image_size {image_size} is not supported')
 
